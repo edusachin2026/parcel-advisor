@@ -8,6 +8,8 @@ response export, and headless-browser automation are your task, not this file's.
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,9 +19,14 @@ from .models import Determination, LineInput
 app = FastAPI(title="Parcel Rate Advisor (assessment starter)")
 
 # Local dev only — candidates should tighten this for their own deployed frontend origin.
+cors_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

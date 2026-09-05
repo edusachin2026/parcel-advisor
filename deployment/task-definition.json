@@ -1,15 +1,21 @@
 {
-  "family": "parcel-rate-advisor",
+  "family": "parcel-rate-advisor-backend",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
   "memory": "1024",
-  "executionRoleArn": "arn:aws:iam::158220645933:role/ecsTaskExecutionRole",
+  "executionRoleArn": "${ECS_EXECUTION_ROLE_ARN}",
   "containerDefinitions": [
     {
       "name": "backend",
-      "image": "158220645933.dkr.ecr.eu-west-1.amazonaws.com/parcel-rate-advisor-backend:initial",
+      "image": "${BACKEND_IMAGE}",
       "essential": true,
+      "environment": [
+        {
+          "name": "CORS_ORIGINS",
+          "value": "${CORS_ORIGINS}"
+        }
+      ],
       "portMappings": [{"containerPort": 8000, "protocol": "tcp"}],
       "healthCheck": {
         "command": ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/docs')\""],
@@ -18,13 +24,6 @@
         "retries": 3,
         "startPeriod": 20
       }
-    },
-    {
-      "name": "frontend",
-      "image": "158220645933.dkr.ecr.eu-west-1.amazonaws.com/parcel-rate-advisor-frontend:initial",
-      "essential": true,
-      "portMappings": [{"containerPort": 80, "protocol": "tcp"}],
-      "dependsOn": [{"containerName": "backend", "condition": "HEALTHY"}]
     }
   ]
 }
