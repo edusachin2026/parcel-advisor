@@ -1,0 +1,80 @@
+name: CD
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  FRONTEND_BUCKET: ${{ vars.FRONTEND_BUCKET }}
+  BACKEND_REPOSITORY: ${{ vars.BACKEND_REPOSITORY }}
+  ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+  ECS_SERVICE: ${{ vars.ECS_SERVICE }}
+  ECS_EXECUTION_ROLE_ARN: ${{ vars.ECS_EXECUTION_ROLE_ARN }}
+  CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
+  VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and publish frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          aws s3 sync dist/ "s3://${FRONTEND_BUCKET}" --delete
+
+      - name: Build and publish backend
+        working-directory: backend
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${BACKEND_REPOSITORY}"
+          docker build -t "${IMAGE_URI}:${IMAGE_TAG}" .
+          docker push "${IMAGE_URI}:${IMAGE_TAG}"
+          echo "BACKEND_IMAGE=${IMAGE_URI}:${IMAGE_TAG}" >> "$GITHUB_ENV"
+
+      - name: Render ECS task definition
+        run: |
+          jq \
+            --arg executionRole "$ECS_EXECUTION_ROLE_ARN" \
+            --arg backendImage "$BACKEND_IMAGE" \
+            --arg corsOrigins "$CORS_ORIGINS" \
+            '.executionRoleArn = $executionRole
+             | .containerDefinitions[0].image = $backendImage
+             | .containerDefinitions[0].environment = [{name: "CORS_ORIGINS", value: $corsOrigins}]' \
+            deployment/task-definition.json > rendered-task-definition.json
+
+      - name: Deploy backend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: rendered-task-definition.json
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true

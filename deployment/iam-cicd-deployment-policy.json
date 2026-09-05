@@ -37,19 +37,9 @@
         "s3:DeleteObject"
       ],
       "Resource": [
-        "arn:aws:s3:::YOUR-FRONTEND-BUCKET",
-        "arn:aws:s3:::YOUR-FRONTEND-BUCKET/*"
+        "arn:aws:s3:::parcel-advisor-fe",
+        "arn:aws:s3:::parcel-advisor-fe/*"
       ]
-    },
-    {
-      "Sid": "CloudFrontInvalidation",
-      "Effect": "Allow",
-      "Action": [
-        "cloudfront:CreateInvalidation",
-        "cloudfront:GetDistribution",
-        "cloudfront:GetDistributionConfig"
-      ],
-      "Resource": "*"
     },
     {
       "Sid": "EcrDeployment",
@@ -81,7 +71,7 @@
       "Sid": "PassOnlyEcsExecutionRole",
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": "arn:aws:iam::YOUR_ACCOUNT_ID:role/YOUR_ECS_EXECUTION_ROLE"
+      "Resource": "arn:aws:iam::203558332388:role/AmazonECSTaskExecutionRolePolicy"
     },
     {
       "Sid": "ReadDeploymentLogs",

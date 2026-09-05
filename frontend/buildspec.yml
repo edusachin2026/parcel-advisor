@@ -12,7 +12,6 @@ phases:
   post_build:
     commands:
       - aws s3 sync dist/ "s3://${FRONTEND_BUCKET}" --delete
-      - aws cloudfront create-invalidation --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" --paths '/*'
 
 artifacts:
   base-directory: dist
