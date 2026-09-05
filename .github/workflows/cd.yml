@@ -34,6 +34,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate deployment configuration
+        env:
+          DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          test -n "$DEPLOY_ROLE_ARN" || { echo "AWS_DEPLOY_ROLE_ARN is missing from the production environment secrets"; exit 1; }
+          test -n "$AWS_REGION" || { echo "AWS_REGION is missing from production environment variables"; exit 1; }
+          test -n "$AWS_ACCOUNT_ID" || { echo "AWS_ACCOUNT_ID is missing from production environment variables"; exit 1; }
+          case "$DEPLOY_ROLE_ARN" in
+            arn:aws:iam::*:role/*) ;;
+            *) echo "AWS_DEPLOY_ROLE_ARN must be an IAM role ARN"; exit 1 ;;
+          esac
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
