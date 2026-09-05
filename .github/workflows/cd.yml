@@ -43,13 +43,6 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and publish frontend
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run build
-          aws s3 sync dist/ "s3://${FRONTEND_BUCKET}" --delete
-
       - name: Build and publish backend
         working-directory: backend
         env:
@@ -78,3 +71,30 @@ jobs:
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
+
+      - name: Discover backend public IP
+        run: |
+          TASK_ARN=$(aws ecs list-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --service-name "$ECS_SERVICE" \
+            --desired-status RUNNING \
+            --query 'taskArns[0]' \
+            --output text)
+          ENI_ID=$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value' \
+            --output text)
+          PUBLIC_IP=$(aws ec2 describe-network-interfaces \
+            --network-interface-ids "$ENI_ID" \
+            --query 'NetworkInterfaces[0].Association.PublicIp' \
+            --output text)
+          test -n "$PUBLIC_IP" -a "$PUBLIC_IP" != "None"
+          echo "VITE_API_BASE=http://${PUBLIC_IP}:8000" >> "$GITHUB_ENV"
+
+      - name: Build and publish frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          aws s3 sync dist/ "s3://${FRONTEND_BUCKET}" --delete
