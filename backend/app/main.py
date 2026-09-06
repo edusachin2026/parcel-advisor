@@ -9,12 +9,16 @@ response export, and headless-browser automation are your task, not this file's.
 from __future__ import annotations
 
 import os
+import csv
+import io
 
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from .determine import determine
-from .models import Determination, LineInput
+from .models import Determination, LineInput, ReviewExportLine, ShipmentReview
+from .parser import parse_geodata
 
 app = FastAPI(title="Parcel Rate Advisor (assessment starter)")
 
@@ -56,3 +60,29 @@ def create_determinations(lines: list[LineInput]) -> list[Determination]:
             )
         )
     return results
+
+
+@app.post("/api/parse", response_model=dict[str, list[ShipmentReview] | list[str]])
+async def parse_export(file: UploadFile = File(...)) -> dict[str, list[ShipmentReview] | list[str]]:
+    """Parse an uploaded GEODATA export and run each invoice line through determine()."""
+    shipments, warnings = parse_geodata(await file.read())
+    return {"shipments": shipments, "warnings": warnings}
+
+
+@app.post("/api/export")
+def export_response(lines: list[ReviewExportLine]) -> StreamingResponse:
+    """Return the reviewed lines in the required response CSV shape."""
+    output = io.StringIO(newline="")
+    fields = [
+        "consignment_reference", "line_id", "description", "origin", "commodity_code",
+        "category", "duty_rate", "vat_rate", "confidence", "status",
+    ]
+    writer = csv.DictWriter(output, fieldnames=fields)
+    writer.writeheader()
+    for line in lines:
+        writer.writerow(line.model_dump())
+    return StreamingResponse(
+        iter([output.getvalue().encode("utf-8")]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=parcel-advisor-response.csv"},
+    )

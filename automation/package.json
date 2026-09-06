@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "node playwright_adapter.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}
