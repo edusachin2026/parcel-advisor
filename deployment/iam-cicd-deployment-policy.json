@@ -2,31 +2,6 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "PipelineOperations",
-      "Effect": "Allow",
-      "Action": [
-        "codepipeline:GetPipeline",
-        "codepipeline:GetPipelineState",
-        "codepipeline:GetPipelineExecution",
-        "codepipeline:ListPipelines",
-        "codepipeline:StartPipelineExecution",
-        "codepipeline:StopPipelineExecution",
-        "codepipeline:RetryStageExecution"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "BuildOperations",
-      "Effect": "Allow",
-      "Action": [
-        "codebuild:StartBuild",
-        "codebuild:BatchGetBuilds",
-        "codebuild:ListBuildsForProject",
-        "codebuild:BatchGetProjects"
-      ],
-      "Resource": "*"
-    },
-    {
       "Sid": "FrontendS3Deployment",
       "Effect": "Allow",
       "Action": [

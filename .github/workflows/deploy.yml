@@ -1,0 +1,54 @@
+name: Deploy
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  BACKEND_REPOSITORY: ${{ vars.BACKEND_REPOSITORY }}
+  FRONTEND_REPOSITORY: ${{ vars.FRONTEND_REPOSITORY }}
+  CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - run: |
+          BACKEND_IMAGE="${{ steps.ecr.outputs.registry }}/${BACKEND_REPOSITORY}:${{ github.sha }}"
+          FRONTEND_IMAGE="${{ steps.ecr.outputs.registry }}/${FRONTEND_REPOSITORY}:${{ github.sha }}"
+          docker build -t "$BACKEND_IMAGE" ./backend
+          docker push "$BACKEND_IMAGE"
+          docker build -t "$FRONTEND_IMAGE" ./frontend
+          docker push "$FRONTEND_IMAGE"
+
+      - name: Deploy to EC2 over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            aws ecr get-login-password --region "${{ env.AWS_REGION }}" | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.registry }}
+            cd /opt/parcel-app
+            export BACKEND_IMAGE="${{ steps.ecr.outputs.registry }}/${{ vars.BACKEND_REPOSITORY }}:${{ github.sha }}"
+            export FRONTEND_IMAGE="${{ steps.ecr.outputs.registry }}/${{ vars.FRONTEND_REPOSITORY }}:${{ github.sha }}"
+            export CORS_ORIGINS="${{ env.CORS_ORIGINS }}"
+            docker compose pull
+            docker compose up -d
